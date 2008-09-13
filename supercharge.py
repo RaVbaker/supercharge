@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# AppEngine with SuperCharge - The MVC framework for Google AppEngine
+# AppEngine with SuperCharge - The light MVC framework for Google AppEngine
 #
 # Copyright 2008 Rafal "RaVbaker" Piekarski
 #
@@ -23,7 +23,12 @@
 # framework: Webapp
 from google.appengine.ext.webapp.util import run_wsgi_app
 from google.appengine.ext import webapp
+
+# python libs
 import re
+import os
+from os import listdir
+
 
 # Google AppEngine APIs
 from google.appengine.api import users
@@ -31,21 +36,38 @@ from google.appengine.api import users
 from sc_cfg import *
 
 class Dispatcher(webapp.RequestHandler):
-  
+
+  def put(self, uri):
+    self.__handleRequest('put', uri)
+
+  def delete(self, uri):
+    self.__handleRequest('delete', uri)
+      
   def post(self, uri):
-    self.__setRequestData(uri)
-    self.__executeRequest()
+    self.__handleRequest('post', uri)
   
   def get(self, uri):
+    self.__handleRequest('get', uri)
     
+    
+  def __handleRequest(self, type, uri):
+    self.request_type = type
     self.__setRequestData(uri)
-    self.__executeRequest()
+    if self.__checkControllerExistness():
+      self.__executeRequest()
+    else:
+      self.__showError404()
     self.__showDebugBar()
+  
+  def __showError404(self):
+    self.error(404)
+    self.response.out.write("<h1>Error 404</h1><p>Page not found</p>")
   
   def __showDebugBar(self):
     self.response.out.write("<div style='border: 3px solid #999;background-color: #f0f0f0;'><u><strong>DEBUG:</strong></u> URL: <strong>%s</strong> \t controller: <strong>%s</strong> \t action: <strong>%s</strong></div>\n"%(self.request.uri, self.controller, self.action))
   
   def __executeRequest(self):
+    
     exec("from controllers.%s import %s" % (self.controller,self.className))
     exec("page = %s(self)" % (self.className))  
     
@@ -61,10 +83,12 @@ class Dispatcher(webapp.RequestHandler):
   def __setRequestData(self, uri):
     
     path = self.__getRequestPath(uri)
-    
     self.controller, self.action = path[0], path[1]
     self.className = self.controller.capitalize()
-    self.params = path[2:]
+    
+    #sets params dict:
+    self.params = dictalize_list(path[2:])
+    self.params.update(dict([(k, self.request.get(k)) for k in self.request.arguments()]))
   
   def __getRequestPath(self, uri):
     path = uri.split('/')
@@ -73,7 +97,7 @@ class Dispatcher(webapp.RequestHandler):
       path = [Root_empty_controller]
     elif self.__matchInRoutes(uri):
       path = self.matched_path
-
+      
     if 1 == len(path) or path[1] == '':
       path.insert(1,'index')
       
@@ -86,6 +110,15 @@ class Dispatcher(webapp.RequestHandler):
       if matched:
         self.matched_path = base_path+list(matched.groups())
         return True
+  
+  def __checkControllerExistness(self):
+    controllers_list = listdir('./controllers')
+    controllers_list.remove('__init__.py')
+    if 0 == controllers_list.count(self.controller+'.py'):
+      self.redirect(Root_empty_controller)
+      return False
+    return True
+    
 
 
 class View:
@@ -164,6 +197,12 @@ class Controller:
 def main():
   application = webapp.WSGIApplication([(r'/(.*)', Dispatcher)],debug=True)
   run_wsgi_app(application)
+  
+def dictalize_list(l=[]):
+  return dict([(l.index(i), i) for i in l])
+
+def dictalize_lists(keys=[], values=[]):
+  return dict([(k, values[k]) for k in keys])
 
 
 if __name__ == '__main__':
