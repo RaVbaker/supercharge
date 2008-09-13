@@ -113,6 +113,10 @@ class Dispatcher(webapp.RequestHandler):
       raise PageNotFoundError(self)
     
 class PageNotFoundError:
+  """ Handle an exception for none existing page
+      
+      self.data contains the controller based object
+  """
   def __init__(self, data):
     self.data = data
   
@@ -121,29 +125,34 @@ class PageNotFoundError:
 
 class View:
   def __init__(self, controller_name, view_name):
+    """ Initialize class and sets main path for view response"""
     self.__setPath(controller_name, view_name)
     
-    
   def output(self):
+    """returns an output content from view"""
     self.__getView(self.path)
     return ''
+    
   def __getView(self, path):
+    """Returns view fetched from file in /views folder"""
     pass
   
   def __setPath(self, controller_name, view_name):
+    """Sets a path for tempalate file"""
     self.path = "views/%s/%s.html" % (controller_name, view_name)
 
 
 class Controller:
   
   def __init__(self, dispatch):
+    """Initialize Controller class with setting base dispatcher data to self.p and view for response using View class"""
     self.p = dispatch
     self.view = dispatch.action
   
   def handleAction(self, action):
-
-    #check thats this page has remaining method and is not in internal Controller methods list
-    if action == 'handleAction' or 0 == dir(self).count(action) or 1  == dir(Controller).count(action):
+    """This method handles calling valid action method in Controller based child class"""
+    #check thats this page had remaining method and is not in internal Controller methods list
+    if 0 == dir(self).count(action) or 1  == dir(Controller).count(action):
       raise PageNotFoundError(self)
     
     self.beforeExecute()
@@ -152,6 +161,8 @@ class Controller:
     self.__show()
   
   def render(self, content, type='html'):
+    """Renders specific content based on type from second argument and a dictionary Types, which 
+    contains allowed one. Defauld render the 'html' response"""
     Types = {
       'html': 'text/html',
       'text': 'text/plain'
@@ -159,25 +170,33 @@ class Controller:
     self.p.response.headers['Content-Type'] = Types[type]
     self.p.response.out.write(content)
   
-  def redirect(self, url):
+  def redirect(self, url, status_code = 200):
+    """Redirects to specific page with Status Code from argument, default is 200 as OK code"""
+    self.p.set_status_code(status_code)
     self.p.redirect(url)
   
   def getParam(self, id):
+    """Return parameter by specific identifier from self.p.params dictionary"""
     return self.p.params[id]
   
   def getParams(self):
+    """Returns all params from current request as a dictionary"""
     return self.p.params
     
   def getRequest(self):
+    """It's only a port from Google's Webapp framework request"""
     return self.p.request
   
   def getResponse(self):
+    """It's only a port from Google's Webapp framework response"""
     return self.p.response
     
   def loginUser(self):
+    """Makes a redirect to user login page and goes back"""
     self.redirect(users.create_login_url(self.p.request.uri))
     
   def logoutUser(self):
+    """Makes a redirect to user logout page and goes back"""
     self.redirect(users.create_logout_url(self.p.request.uri))
     
   def __show(self):
