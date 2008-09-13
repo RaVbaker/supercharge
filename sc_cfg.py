@@ -20,9 +20,9 @@ Root_empty_controller = 'index'
 # set optional routes for page
 Routes = [
 
-  ('s/ciezka', ['test', 'testParams']),
-  ('sc\d', ['test', 'index']),
-  ('e(.{3})(\d*)', ['test', 'testParams']),
+  # ('s/ciezka', ['test', 'testParams']),
+  # ('sc\d', ['test', 'index']),
+  # ('e(.{3})(\d*)', ['test', 'testParams']),
 
 ]
 

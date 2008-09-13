@@ -18,16 +18,19 @@ class Test(Controller):
     if user:
       self.render('Hello '+user.nickname())
     else:
-      self.login_user()
+      self.loginUser()
   
   def testParams(self):
-    self.renderHTML(self.getParams())
+    self.render(self.getParams())
   
   def logout(self):
       user = users.get_current_user()
       if user:
-        self.logout_user()
+        self.logoutUser()
       else:
         self.redirect('/')
-
+  
+  def tested(self):
+    pass
+  
 

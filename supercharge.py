@@ -20,7 +20,7 @@
 
 
 
-# framework: Webapp
+# framework Webapp libs
 from google.appengine.ext.webapp.util import run_wsgi_app
 from google.appengine.ext import webapp
 
@@ -29,10 +29,10 @@ import re
 import os
 from os import listdir
 
-
 # Google AppEngine APIs
 from google.appengine.api import users
 
+# framework SuperCharge configuration
 from sc_cfg import *
 
 class Dispatcher(webapp.RequestHandler):
@@ -53,11 +53,13 @@ class Dispatcher(webapp.RequestHandler):
   def __handleRequest(self, type, uri):
     self.request_type = type
     self.__setRequestData(uri)
-    if self.__checkControllerExistness():
+    try:
+      self.__checkControllerExistness()
       self.__executeRequest()
-    else:
+    except PageNotFoundError:
       self.__showError404()
-    self.__showDebugBar()
+    finally:
+      self.__showDebugBar()
   
   def __showError404(self):
     self.error(404)
@@ -71,14 +73,7 @@ class Dispatcher(webapp.RequestHandler):
     exec("from controllers.%s import %s" % (self.controller,self.className))
     exec("page = %s(self)" % (self.className))  
     
-    #check thats this page has remaining method
-    if 0 == dir(page).count(self.action):
-      self.redirect("/%s" % self.controller)
-      return
-      
-    exec("page.%s()" % self.action)
-    page.after_execute()
-    page.show()
+    page.handleAction(self.action)
   
   def __setRequestData(self, uri):
     
@@ -96,7 +91,7 @@ class Dispatcher(webapp.RequestHandler):
     if '' == uri:
       path = [Root_empty_controller]
     elif self.__matchInRoutes(uri):
-      path = self.matched_path
+      path = self.matchedPath
       
     if 1 == len(path) or path[1] == '':
       path.insert(1,'index')
@@ -108,18 +103,21 @@ class Dispatcher(webapp.RequestHandler):
       rule, base_path = route
       matched = re.match(rule, uri)
       if matched:
-        self.matched_path = base_path+list(matched.groups())
+        self.matchedPath = base_path+list(matched.groups())
         return True
   
   def __checkControllerExistness(self):
     controllers_list = listdir('./controllers')
     controllers_list.remove('__init__.py')
     if 0 == controllers_list.count(self.controller+'.py'):
-      self.redirect(Root_empty_controller)
-      return False
-    return True
+      raise PageNotFoundError(self)
     
-
+class PageNotFoundError:
+  def __init__(self, data):
+    self.data = data
+  
+  def __str__(self):
+    return str(self.data)
 
 class View:
   def __init__(self, controller_name, view_name):
@@ -141,21 +139,28 @@ class Controller:
   def __init__(self, dispatch):
     self.p = dispatch
     self.view = dispatch.action
-    self.before_execute()
   
-  def renderHTML(self, html):
-    self.p.response.headers['Content-Type'] = 'text/html'
-    self.render(html)
+  def handleAction(self, action):
+
+    #check thats this page has remaining method and is not in internal Controller methods list
+    if action == 'handleAction' or 0 == dir(self).count(action) or 1  == dir(Controller).count(action):
+      raise PageNotFoundError(self)
+    
+    self.beforeExecute()
+    exec("self.%s()" % action)
+    self.afterExecute()
+    self.__show()
   
-  def renderText(self, text):
-    self.p.response.headers['Content-Type'] = 'text/plain'
-    self.render(text)
+  def render(self, content, type='html'):
+    Types = {
+      'html': 'text/html',
+      'text': 'text/plain'
+    }
+    self.p.response.headers['Content-Type'] = Types[type]
+    self.p.response.out.write(content)
   
   def redirect(self, url):
     self.p.redirect(url)
-  
-  def render(self, content):
-    self.p.response.out.write(content)
   
   def getParam(self, id):
     return self.p.params[id]
@@ -169,26 +174,26 @@ class Controller:
   def getResponse(self):
     return self.p.response
     
-  def login_user(self):
+  def loginUser(self):
     self.redirect(users.create_login_url(self.p.request.uri))
     
-  def logout_user(self):
+  def logoutUser(self):
     self.redirect(users.create_logout_url(self.p.request.uri))
     
-  def show(self):
+  def __show(self):
     """Shows selected view. If you want to disable view, please set 'view' to empty string"""
     code = ''
     if(self.view):
       self.viewObj = View(self.p.controller, self.view)
       code = self.viewObj.output()
     
-    self.renderHTML(code)
+    self.render(code, 'html')
   
-  def before_execute(self):
+  def beforeExecute(self):
     """It executed before whole request. Great for setting variables available in whole controller"""
     pass
   
-  def after_execute(self):
+  def afterExecute(self):
     """It executed after whole request. Great for sending some data"""
     pass
 
@@ -199,10 +204,8 @@ def main():
   run_wsgi_app(application)
   
 def dictalize_list(l=[]):
+  """makes a dictionary from argument l which is a list"""
   return dict([(l.index(i), i) for i in l])
-
-def dictalize_lists(keys=[], values=[]):
-  return dict([(k, values[k]) for k in keys])
 
 
 if __name__ == '__main__':
