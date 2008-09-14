@@ -126,23 +126,55 @@ class PageNotFoundError:
 class View:
   def __init__(self, controller_name, view_name):
     """ Initialize class and sets main path for view response"""
+    self.__setLayoutPath(controller_name)
     self.__setPath(controller_name, view_name)
     
-  def output(self):
+  def output(self, variables):
     """returns an output content from view"""
-    self.__getView(self.path)
-    return ''
+    output = self.__getView(self.path)
+    
+    # sets content to layout
+    output = self.__setVariables({'yield': output}, self.__getLayout())
+    # sets variables to site
+    output = self.__setVariables(variables, output)
+    
+    return output
+    
+  def __getLayout(self):
+    layout = self.__getView(self.layout_path)
+    if layout == '':
+      layout = '{{yield}}'
+    return layout
+    
+  def __setVariables(self, variables_dict, content):
+    """sets variables to content specified by {{variable_name}} dict"""
+    for pattern in variables_dict:
+        content = content.replace("{{%s}}"%pattern, str(variables_dict[pattern]))
+    return content
     
   def __getView(self, path):
     """Returns view fetched from file in /views folder"""
-    pass
+
+    if(os.path.exists(path)):
+      f= file(path)
+      return "".join(f.readlines())
+    return ''
   
   def __setPath(self, controller_name, view_name):
     """Sets a path for tempalate file"""
-    self.path = "views/%s/%s.html" % (controller_name, view_name)
+    self.path = "./views/%s/%s.html" % (controller_name, view_name)
+  
+  def __setLayoutPath(self, controller_name):
+    """Sets a path for layout file"""
+    layout = 'application'
+    if controller_name:
+      layout = controller_name
+    self.layout_path = "./views/%s.html" % layout
 
 
 class Controller:
+  
+  output_vars = {}
   
   def __init__(self, dispatch):
     """Initialize Controller class with setting base dispatcher data to self.p and view for response using View class"""
@@ -198,13 +230,19 @@ class Controller:
   def logoutUser(self):
     """Makes a redirect to user logout page and goes back"""
     self.redirect(users.create_logout_url(self.p.request.uri))
+  
+  def set(self, varName, varValue):
+    self.output_vars[varName] = varValue
+  
+  def get(self,varName):
+    return self.output_vars[varName]
     
   def __show(self):
     """Shows selected view. If you want to disable view, please set 'view' to empty string"""
     code = ''
     if(self.view):
       self.viewObj = View(self.p.controller, self.view)
-      code = self.viewObj.output()
+      code = self.viewObj.output(self.output_vars)
     
     self.render(code, 'html')
   
